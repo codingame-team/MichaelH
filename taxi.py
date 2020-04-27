@@ -1,3 +1,4 @@
+# coding: utf-8
 import sys
 import math
 import email
@@ -20,13 +21,8 @@ from mapbox import Geocoder
 #
 #   Paramètres globaux du programme
 #
-
 # ma clé d'API sur Mabox: https://account.mapbox.com/
 MAPBOX_API_KEY = "pk.eyJ1IjoicG1vdXJleSIsImEiOiJjazlmcW5lMmEwZTFyM2RxbXhwd3l6eDdpIn0.0AxxOZigM-4EeTORmNAndA"
-
-# Regénérer les coordonnées GPS du point de départ des taxis et des destinations usuelles (non utilisé pour l'instant)
-TAXI_LOCATION_REBUILD = False
-DESTINATION_LOCATION_REBUILD = False
 
 # Chemins d'accès aux fichiers sur le PC
 chemin = "C:\\Users\\User\\source\\repos\\MichaelH"
@@ -34,7 +30,6 @@ input_file = "Mail des resas.eml"
 output_file = "Planning.csv"
 gps_locations_file = "data\\locations_gps.txt"
 taxis_file = "data\\taxis.txt"
-
 
 #
 # Quelques fonctions de vérification de l'encodage de caractères utilisé dans le mail (au cas où) - Peut-être à supprimer (car double emploi)
@@ -69,7 +64,6 @@ def get_body(message):
         body = str(message.get_payload(decode=True), get_charset(message), "replace")
         return body.strip()
 
-
 #
 # Les fonctions de géolocalisation pour OpenStreetMap, GoogleMaps (non utilisées dans ce programme)
 #   (N.B.: j'ai choisi Mapbox cf classe DAO_Toolbox plus bas... (100.000 requêtes gratuites par mois) car GoogleMaps API est devenu payant et OpenStreetMap peu exploitable
@@ -88,39 +82,29 @@ def get_GPS_Coordinates_OpenStreet_Map(postal_address, city):
     # print(url_address)
     # url_openstreetmap_api = "https://nominatim.openstreetmap.org/search?q=" + url_address + "&key=" + MAPBOX_API_KEY
     url_openstreetmap_api = "https://nominatim.openstreetmap.org/search?q=" + formatted_PA + "&format=geojson"
-
-    print(url_openstreetmap_api)
+    #print(url_openstreetmap_api)
     # Request data from link as 'str'
     data = requests.get(url_openstreetmap_api).text
-
     # convert 'str' to Json
     data = json.loads(data)
-
     return data
-
 
 # (Non utilisé) Récupérer une clé d'API pour la géolocalisation Google Maps (nécessite une CB, crédit de 200$ par mois): https://developers.google.com/maps/documentation/geocoding/get-api-key
 GOOGLE_API_KEY = "AIzaSyBRcsCnUED0GjjM1Ex2nYayoGMSnBIehac"
-
 
 def get_GPS_Coordinates_Google_API(postal_address):
     formatted_PA = postal_address
     url_address = parse.urlencode({'address': formatted_PA})
     url_google_map_api = "https://maps.googleapis.com/maps/api/geocode/json?address=" + url_address + "&key=" + GOOGLE_API_KEY
-
     # Request data from link as 'str'
     data = requests.get(url_google_map_api).text
-
     # convert 'str' to Json
     data = json.loads(data)
-
     # data = requests.get(url=url_google_map_api)
     # binary = data.content
     # output = json.loads(binary)
-
     # result = json.load(urllib.urlopen(url_google_map_api))
     return data
-
 
 #
 # Quelques fonctions de manipulation de chaînes de caractères
@@ -129,9 +113,8 @@ regex_dsup_delimiter = '>> ?\d{1,2} *'
 regex_cr_lf = '[\n\r]'
 regex_libelle_societe = '^-- TAXI MEDICAL NICE'
 regex_code_secteur = 'S\d{1,2}'
-regex_special_chars = '[^A-Za-z0-9 \-()<<]'
+regex_special_chars = '[^A-Za-z0-9 \-()<<\/]'
 regex_phone_number = '([0-9]{2} ){4}'
-
 
 def conversion_accents(chaine):
     converter = {'é': 'e', 'è': 'e', 'ê': 'e', 'à': 'a', 'ç': 'c'}
@@ -144,7 +127,11 @@ def conversion_accents(chaine):
 
 
 #
-# Description des objets sous forme de classe
+# Description des classes métier et d'accès aux données
+#   Objectif de l'abstraction: s'affranchir de la source de données, structurer des données provenant d'un système tiers, et séparer les différentes couches applicatives
+#
+#
+# Classes métier "Location", "Taxi" et "Courses"
 #
 class Taxi(object):
     #   Constructeur de la classe Taxi
@@ -161,15 +148,6 @@ class Taxi(object):
         return "{} (id:{}), name:{}, id_location:{}".format(self.__class__.__name__, self.id, self.name,
                                                             self.id_location)
 
-
-#
-# Description des classes métier et d'accès aux données
-#   Objectif de l'abstraction: s'affranchir de la source de données, structurer des données provenant d'un système tiers, et séparer les différentes couches applicatives
-#
-
-#
-# Classes métier "Location", "Taxi" et "Courses"
-#
 class Location(object):
     #   Constructeur de la classe Location
     #   Paramètres d'initialisation:
@@ -186,11 +164,10 @@ class Location(object):
         self.longitude = longitude
         self.sector_code = sector_code
         self.location_type = location_type
+        print(self)
 
     def __str__(self):
-        return "{} (id:{}), latitude:{}, longitude:{}".format(self.__class__.__name__, self.id, self.latitude,
-                                                              self.longitude)
-
+        return "{} (id:{}), postal_address:{}, latitude:{}, longitude:{}, sector_code:{}, location_type:{}".format(self.__class__.__name__, self.id, self.postal_address, self.latitude, self.longitude, self.sector_code, self.location_type)
 
 class Course(object):
     #   Constructeur de la classe Course
@@ -230,7 +207,6 @@ class Course(object):
             self.__class__.__name__, self.id, self.time, self.from_location_id, self.to_location_id, self.contact_name,
             self.first_phone_no, self.second_phone_no, self.payment_info)
 
-
 # Classe d'accès aux données GPS (locales ou distantes)
 class DAO_Toolbox(object):
     def __init__(self, taxis_file, gps_locations_file, courses_list):
@@ -238,9 +214,9 @@ class DAO_Toolbox(object):
         self.gps_locations_file = gps_locations_file
         self.taxi_list = self.loadTaxis(taxis_file)
         self.gps_locations_list = self.loadGPSLocations(gps_locations_file)
-        self.gps_locations_count = len(self.gps_locations_list)
-        self.gps_locations_list = []
+        self.gps_locations_count = len(self.gps_locations_list) if self.gps_locations_list != None else 0
         self.courses_list = self.loadCourses(courses_list)
+        print(self.gps_locations_list)
 
     #
     # Création du planning de courses pour les taxis
@@ -262,10 +238,9 @@ class DAO_Toolbox(object):
     #     return taxi_object_list
 
     #
-    # Chargement en mémoire du tableau d'objets Taxi
-    # Entrée: nom de fichier
-    #           Structure: "Id taxi";"Nom";"Id_Location"
-    # Sortie: liste d'objets de type taxi
+    # Chargement en mémoire du tableau d'objets Courses
+    # Entrée: tableau non formatté provenant du fichier d'entrée EML
+    # Sortie: liste d'objets de type Courses
     #
     def loadCourses(self, courses_list):
         courses_object_list = []
@@ -280,23 +255,34 @@ class DAO_Toolbox(object):
     #           Structure: "Id taxi";"Nom";"Id_Location"
     # Sortie: liste d'objets de type taxi
     #
-    def loadTaxis(self, taxis_file):
+    def loadTaxis(self, taxis_filename):
         try:
-            taxis_file = open(os.path.join(chemin, taxis_file), "r")
+            taxis_filename = os.path.join(chemin, taxis_filename)
+            taxis_file = open(os.path.join(chemin, taxis_filename), "r")
+            taxi_count = len([taxi for taxi in taxis_file])
+            taxis_file.seek(0)
+            if taxi_count == 0:
+                print("Fichier {} vide!".format(taxis_filename))
+                taxis_file.close()
+                return None
+            else:
+                print("Chargement de {} taxi(s)".format(taxi_count))
+                taxi_object_list = []
+                for line in taxis_file:
+                    taxi = line.split(";")
+                    id_taxi = taxi[0]
+                    nom = taxi[1]
+                    id_location = taxi[2]
+                    taxi_object = Taxi(id_taxi, nom, id_location)
+                    taxi_object_list.append(taxi_object)
+                taxis_file.close()
+                return taxi_object_list
         except FileNotFoundError:
-            print("Pas de fichier {} trouvé!".format(taxis_file.name))
+            print("Pas de fichier {} trouvé!".format(taxis_filename))
             return None
-        taxis_list = []
-        taxis_list.append([ligne.split(";", 4) for ligne in taxis_file])
-        taxis_file.close()
-        taxi_object_list = []
-        for taxi in taxis_list:
-            id_taxi = taxi[0]
-            nom = taxi[1]
-            id_location = taxi[2]
-            taxi_object = Taxi(id_taxi, nom, id_location)
-            taxi_object_list.append(taxi_object)
-        return taxi_object_list
+        except (ValueError, KeyError):
+            print("Erreur inattendue lecture fichier {}: ValueError {}, KeyError {}".format(taxis_filename, ValueError, KeyError))
+            return None
 
     #
     # Chargement en mémoire du tableau d'objets Locations connues à partir du fichier des localisations gps.
@@ -305,26 +291,38 @@ class DAO_Toolbox(object):
     #           Structure: "Id_Location";"Adresse Postale";"Latitude";"Longitude";"Code secteur";"Type Location"
     # Paramètres de sortie: liste d'objets de type "Location"
     #
-    def loadGPSLocations(self, gps_locations_file):
+    def loadGPSLocations(self, gps_locations_filename):
         try:
-            gps_locations_file = open(os.path.join(chemin, gps_locations_file), "r")
+            gps_locations_filename = os.path.join(chemin, gps_locations_filename)
+            gps_locations_file = open(gps_locations_filename, "r")
+            gps_loc_count = len([gpsloc for gpsloc in gps_locations_file])
+            gps_locations_file.seek(0)
+            if gps_loc_count == 0:
+                print("Fichier {} vide!".format(gps_locations_filename))
+                gps_locations_file.close()
+                return None
+            else:
+                print("Chargement de {} position(s) GPS".format(gps_loc_count))
+                gps_locations_object_list = []
+                for line in gps_locations_file:
+                    gps_location = line.split(";")
+                    id_location = gps_location[0]
+                    postal_address = gps_location[1]
+                    latitude = gps_location[2]
+                    longitude = gps_location[3]
+                    sector_code = gps_location[4]
+                    location_type = gps_location[5]
+                    location_object = Location(id_location, postal_address, latitude, longitude, sector_code, location_type)
+                    gps_locations_object_list.append(location_object)
+                gps_locations_file.close()
+                return gps_locations_object_list
         except IOError:
-            print("Pas de fichier {} trouvé!".format(gps_locations_file.name))
+            print("Pas de fichier {} trouvé!".format(gps_locations_filename))
             return None
-        gps_locations_list = []
-        gps_locations_list.append([ligne.split(";", 6) for ligne in gps_locations_file])
-        gps_locations_file.close()
-        gps_locations_object_list = []
-        for gps_location in gps_locations_list:
-            id_location = gps_location[0]
-            postal_address = gps_location[1]
-            latitude = gps_location[2]
-            longitude = gps_location[3]
-            sector_code = gps_location[4]
-            location_type = gps_location[5]
-            location_object = Location(id_location, postal_address, latitude, longitude, sector_code, location_type)
-            gps_locations_object_list.append(location_object)
-        return gps_locations_object_list
+        except (ValueError, KeyError):
+            print("Erreur inattendue lecture fichier {}: ValueError {}, KeyError {}".format(gps_locations_filename, ValueError, KeyError))
+            return None
+
 
 
     #
@@ -335,20 +333,21 @@ class DAO_Toolbox(object):
     #           Structure: "Id_Location";"Adresse Postale";"Latitude";"Longitude";"Code secteur";"Type Location"
     #
     def updateGPSLocations(self):
-        gps_locations_file = open(os.path.join(chemin, self.gps_locations_file), "a")
+        gps_locations_filename = os.path.join(chemin, self.gps_locations_file)
+        gps_locations_file = open(gps_locations_filename, "a")
         gps_locations_newcount = len(self.gps_locations_list)
         start_index = self.gps_locations_count
         end_index = gps_locations_newcount
         if start_index == end_index:
-            print("Pas de nouvelle localisation à écrire dans le fichier {}!", gps_locations_file.name)
+            print("Pas de nouvelles position GPS à écrire dans le fichier {}!".format(gps_locations_filename))
         else:
             output_txt = ""
             for gpsloc in self.gps_locations_list[start_index:end_index]:
                 gps_location_csv = "{};{};{};{};{};{}".format(gpsloc.id, gpsloc.postal_address, gpsloc.latitude, gpsloc.longitude, gpsloc.sector_code, gpsloc.location_type)
                 output_txt += "{}\n".format(gps_location_csv)
-            print("Ecriture du fichier {} - {} nouvelles localisations GPS créées".format(gps_locations_file.name, end_index-start_index))
-            fichier.write(output_txt)
-            fichier.close()
+            print("Ecriture du fichier {} - {} nouvelles localisations GPS créées".format(gps_locations_filename, end_index-start_index))
+            gps_locations_file.write(output_txt)
+        gps_locations_file.close()
 
     #
     # Fonction MapBox de "forward geocoding" pour récupérer les coordonnées GPS d'une adresse donnée
@@ -361,7 +360,7 @@ class DAO_Toolbox(object):
     #
     # Paramètres d'entrée: Adresse postale
     #           Structure: "Id_Location";"Adresse Postale";"Latitude";"Longitude";"Code secteur";"Type Location"
-    # Paramètres de sortie: tableau indexé [latitude, longitude] ou code d'erreur HTTP si pas d'objet JSON retourné par l'API Mapbox
+    # Paramètres de sortie: tableau indexé [longitude, latitude] ou code d'erreur HTTP si pas d'objet JSON retourné par l'API Mapbox
     #
     def getGPSLocation(self, postal_address):
         endpoint_full = "mapbox.places-permanent"  # utilisé pour des fonctions avancées payantes (on n'utilise pas!)
@@ -380,22 +379,33 @@ class DAO_Toolbox(object):
     # Entrée: Adresse postale
     # Sortie: "id_location" ou "None" si l'API Mapbox n'a pas localisé l'adresse
     #
-    def getLocationId(self, postal_address, location_type):
-        for gps_location in self.gps_locations_list:
-            pattern_pa = gps_location[1]
+    def getLocationId(self, postal_address, sector_code, location_type):
+        gps_locations_filename = os.path.join(chemin, self.gps_locations_file)
+        gps_locations_file = open(os.path.join(chemin, self.gps_locations_file), "a")
+        for gps_location_object in self.gps_locations_list:
+            #print(gps_location_object.postal_address)
+            pattern_pa = re.compile(gps_location_object.postal_address)
             if pattern_pa.match(postal_address):
-                return gps_location[0]
-            else:
-                result = self.getGPSLocation(postal_address)
-                if len(result) == 1:
-                    print("Erreur de géolocalisation! Service Mapbox (code erreur HTTP {})".format(result))
-                    return None
-                else:
-                    id_location = len(self.gps_locations_list)
-                    latitude, longitude = result
-                    location_object = Location(id_location, postal_address, latitude, longitude, None, location_type)
-                    self.gps_locations_list.append(location_object)
-                    return id_location
+                gps_locations_file.close()
+                return gps_location_object.id
+        result = self.getGPSLocation(postal_address)
+        if len(result) == 1:
+            print("Erreur de géolocalisation! Service Mapbox (code erreur HTTP {})".format(result))
+            return None
+        else:
+            id_location = len(self.gps_locations_list)
+            longitude = result[0]
+            latitude = result[1]
+            # Création de l'objet en mémoire
+            location_object = Location(id_location, postal_address, latitude, longitude, sector_code, location_type)
+            self.gps_locations_list.append(location_object)
+            # Ecriture de la nouvelle localisation sur disque (au cas où Mapbox se plante)
+            gps_location_csv = "{};{};{};{};{};{}\n".format(location_object.id, location_object.postal_address, location_object.latitude, location_object.longitude, location_object.sector_code, location_object.location_type)
+            print("Ecriture dans fichier {} - 1 nouvelle localisation GPS créée".format(gps_locations_filename, location_object))
+            gps_locations_file.write(gps_location_csv)
+            gps_locations_file.close()
+            return id_location
+
 
     # méthode de création d'un objet de type "Course" à partir de données d'entrées
     def createCourse(self, id_course, course):
@@ -421,17 +431,21 @@ class DAO_Toolbox(object):
         sector_code = tab_4_tmp[0].strip() if is_sector_code else ""
         to_city = tab_4_tmp[1] if is_sector_code else tab_4_tmp[0]
         to_street = " ".join(tab_4_tmp[2:len(tab_4_tmp)]).strip() if sector_code else " ".join(tab_4_tmp[1:len(tab_4_tmp)])
+        to_street = to_street.split("/")[0].strip()
         to_postal_address = to_street.strip() + " " + to_city.strip()
 
         # Extraction informations client, heure et adresse de ramassage
         # tab_5 -> template = "09H20 - (POTEZ JUSTINE (ADO)) Saint-Laurent-du-Var - 591 Avenue Jean Aicard - RESIDENCE ST MARC BAT 7 - 06 73 80 48 45  - 06 25 18 28 24 PERE
         # tab_5 -> template = "09H15 - (ROBBE CLAUDE) NICE - 12 RUE DES PONCHETTES - MAISON EN FACE DE L ARCHE- PRES DU COURS SALEYA - 06 82 56 88 06 - 04 93 13 08 28  "
+        # tab_5 -> template = "09H00 - (CARBONI EDMON - BASTIA) NICE -  NICE AEROPORT 2 - BASTIA - 06 45 27 30 75  DEST S22 NICE  HOPITAL ARCHET 1"
         tab_5 = tab_3[0]
+        #tab_5 = re.sub('(.')
         tab_6 = tab_5.split(" - ")
         #print("Phone 1", tab_6)
         time = tab_6[0].strip()
         # Nom contact et ville
         # template = "(POTEZ JUSTINE (ADO)) Saint-Laurent-du-Var "
+        # template = "(CARBONI EDMON - BASTIA) NICE"
         tab_field_2 = tab_6[1].strip()
         tab_field_2_tmp = tab_field_2.strip().split(" ")
         from_city = tab_field_2_tmp[-1]
@@ -452,8 +466,9 @@ class DAO_Toolbox(object):
         position_fin_adresse = len(tab_6) - len(phone_list)
         from_address_info = " - ".join(tab_6[3:position_fin_adresse])
 
-        from_location_id = self.getLocationId(from_postal_address, 'D')
-        to_location_id = self.getLocationId(to_postal_address, 'D')
+        from_location_id = self.getLocationId(from_postal_address, sector_code, 'P')
+        print(from_location_id)
+        to_location_id = self.getLocationId(to_postal_address, sector_code, 'D')
         course_Object = Course(id_course, time, from_location_id, to_location_id, contact_name, first_phone_no, second_phone_no, payment_info)
 
         return course_Object
@@ -506,11 +521,13 @@ DAO_Toolbox = DAO_Toolbox(taxis_file, gps_locations_file, courses_tab)
 courses = DAO_Toolbox.courses_list
 gps_locations = DAO_Toolbox.gps_locations_list
 
+
 #
 #   Début de l'algorithme (pour l'instant rien du tout :-DD)
 #
 
 # Ecriture du fichier de sortie ( A implémenter )
+# DAO_Toolbox.createPlanning()
 output_txt = ""
 for course in courses_tab:
     course = conversion_accents(course)
@@ -520,5 +537,7 @@ print("Ecriture du fichier {} - {} nouvelles courses créées".format(fichier.na
 fichier.write(output_txt)
 fichier.close()
 
+print("MON ADRESSE PROUT", DAO_Toolbox.getGPSLocation("1880 ROUTE DE SAINT JEANNET SAINT-LAURENT-DU-VAR"))
+
 # Enregistrement des nouvelles destinations
-DAO_Toolbox.updateGPSLocations()
+#DAO_Toolbox.updateGPSLocations()
